@@ -10,7 +10,7 @@
     ],
     "require": {
         "php": "^8.4",
-        "agenciafmd/filament-admix": "v1.x-dev|dev-master",
+        "agenciafmd/filament-admix": "v1.x-dev|dev-master"
     },
     "autoload": {
         "psr-4": {
