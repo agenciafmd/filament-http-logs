@@ -1,0 +1,11 @@
+{
+    "HttpLogs": "Logs de integração",
+    "HttpLog": "Log de integração",
+    "Method": "Método",
+    "Request headers": "Cabeçalho de envio",
+    "Request body": "Dados enviados",
+    "Status": "Status",
+    "Response headers": "Cabeçalho recebido",
+    "Response body": "Dados recebidos",
+    "Copied!": "Copiado!"
+}

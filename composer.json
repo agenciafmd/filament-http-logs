@@ -1,0 +1,29 @@
+{
+    "name": "agenciafmd/filament-http-logs",
+    "description": "Filament - Http Logs",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Irineu Junior",
+            "email": "irineu@fmd.ag"
+        }
+    ],
+    "require": {
+        "php": "^8.4",
+        "agenciafmd/filament-admix": "v1.x-dev|dev-master",
+    },
+    "autoload": {
+        "psr-4": {
+            "Agenciafmd\\HttpLogs\\": "src/",
+            "Agenciafmd\\HttpLogs\\Database\\Factories\\": "database/factories/",
+            "Agenciafmd\\HttpLogs\\Database\\Seeders\\": "database/seeders/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Agenciafmd\\HttpLogs\\Providers\\HttpLogServiceProvider"
+            ]
+        }
+    }
+}
