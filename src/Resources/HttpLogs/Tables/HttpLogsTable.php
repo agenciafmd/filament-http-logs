@@ -48,24 +48,22 @@ final class HttpLogsTable
                     ->sortable()
                     ->searchable()
                     ->state(function ($record) {
-                        return str(collect($record->request_body)
-                            ->map(function ($value, $key) {
-                                return "{$key}: {$value}";
-                            })
-                            ->values()
-                            ->implode(' | '))->limit(50);
+                        if (! $record->request_body) {
+                            return '';
+                        }
+
+                        return str(json_encode($record->request_body, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT))->limit(50);
                     }),
                 TextColumn::make('response_body')
                     ->translateLabel()
                     ->sortable()
                     ->searchable()
                     ->state(function ($record) {
-                        return str(collect($record->response_body)
-                            ->map(function ($value, $key) {
-                                return "{$key}: {$value}";
-                            })
-                            ->values()
-                            ->implode(' | '))->limit(50);
+                        if (! $record->response_body) {
+                            return '';
+                        }
+
+                        return str(json_encode($record->response_body, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT))->limit(50);
                     }),
                 TextColumn::make('status')
                     ->translateLabel()

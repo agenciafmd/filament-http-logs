@@ -24,7 +24,7 @@ final class HttpLogServiceProvider extends ServiceProvider
 
     private function bootProviders(): void
     {
-        //
+        $this->app->register(HttpClientServiceProvider::class);
     }
 
     private function bootMigrations(): void

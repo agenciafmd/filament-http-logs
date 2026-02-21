@@ -15,6 +15,7 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Support\Arr;
 
 final class HttpLogResource extends Resource
 {
@@ -60,17 +61,29 @@ final class HttpLogResource extends Resource
                             ->columnSpan(4),
                         KeyValueEntry::make('request_headers')
                             ->translateLabel()
+                            ->state(fn ($record) => collect(Arr::dot($record->request_headers))
+                                ->map(fn ($value) => is_array($value) ? implode(', ', $value) : $value)
+                                ->toArray())
                             ->columnSpanFull()
-                            ->hidden(fn ($record): bool => !config('filament-http-logs.show_request_headers')),
+                            ->hidden(fn ($record): bool => ! config('filament-http-logs.show_request_headers')),
                         KeyValueEntry::make('request_body')
                             ->translateLabel()
+                            ->state(fn ($record) => collect(Arr::dot($record->request_body ?? []))
+                                ->map(fn ($value) => is_array($value) ? implode(', ', $value) : $value)
+                                ->toArray())
                             ->columnSpanFull(),
                         KeyValueEntry::make('response_headers')
                             ->translateLabel()
+                            ->state(fn ($record) => collect(Arr::dot($record->response_headers ?? []))
+                                ->map(fn ($value) => is_array($value) ? implode(', ', $value) : $value)
+                                ->toArray())
                             ->columnSpanFull()
-                            ->hidden(fn ($record): bool => !config('filament-http-logs.show_response_headers')),
+                            ->hidden(fn ($record): bool => ! config('filament-http-logs.show_response_headers')),
                         KeyValueEntry::make('response_body')
                             ->translateLabel()
+                            ->state(fn ($record) => collect(Arr::dot($record->response_body ?? []))
+                                ->map(fn ($value) => is_array($value) ? implode(', ', $value) : $value)
+                                ->toArray())
                             ->columnSpanFull(),
                         TextEntry::make('status')
                             ->translateLabel()

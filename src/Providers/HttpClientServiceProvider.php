@@ -1,0 +1,210 @@
+<?php
+
+declare(strict_types=1);
+
+namespace Agenciafmd\HttpLogs\Providers;
+
+use Agenciafmd\HttpLogs\Models\HttpLog;
+use Exception;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
+use Psr\Http\Message\RequestInterface;
+use Psr\Http\Message\ResponseInterface;
+
+/* source: https://github.com/farayaz/laravel-spy/blob/main/src/LaravelSpy.php */
+
+final class HttpClientServiceProvider extends ServiceProvider
+{
+    public function boot(): void
+    {
+        Http::globalMiddleware(static function (callable $handler): callable {
+            return static function (RequestInterface $request, array $options) use ($handler) {
+                if (! config('filament-http-logs.enabled')) {
+                    return $handler($request, $options);
+                }
+
+                $httpLog = self::shouldLog($request) ? self::handleRequest($request) : null;
+
+                return $handler($request, $options)->then(
+                    fn (ResponseInterface $response) => self::handleResponse($response, $httpLog),
+                    fn (Exception $e) => self::handleException($e, $httpLog)
+                );
+            };
+        });
+    }
+
+    public function register(): void
+    {
+        //
+    }
+
+    protected static function parseContent(string $context, mixed $content, ?string $contentType = null): mixed
+    {
+        if (empty($content)) {
+            return null;
+        }
+
+        $excludeTypes = config('filament-http-logs.' . $context . '_body_exclude_content_types', []);
+        if (! empty($contentType)) {
+            foreach ($excludeTypes as $excludeType) {
+                if (str_contains($contentType, $excludeType)) {
+                    return ['content excluded by configuration'];
+                }
+            }
+        }
+
+        if (str_contains($contentType, 'application/json') || json_decode($content, true) !== null) {
+            return json_decode($content, true);
+        }
+
+        if (str_contains($contentType, 'application/xml') || str_contains($contentType, 'text/xml')) {
+            return json_decode(json_encode(simplexml_load_string($content)), true);
+        }
+
+        if (str_contains($contentType, 'application/x-www-form-urlencoded')) {
+            parse_str($content, $data);
+
+            return $data;
+        }
+
+        if (str_contains($contentType, 'multipart/form-data')) {
+            return base64_encode($content);
+        }
+
+        if (($contentType && (
+            str_contains($contentType, 'image/') ||
+            str_contains($contentType, 'video/') ||
+            str_contains($contentType, 'application/') ||
+            str_contains($contentType, 'audio/')
+        ))) {
+            return base64_encode($content);
+        }
+
+        return $content;
+    }
+
+    protected static function obfuscate(mixed $data): mixed
+    {
+        $mask = '#######';
+        $obfuscates = config('filament-http-logs.hide_fields', []);
+        $fieldMaxLength = config('filament-http-logs.field_max_length', 10000);
+        $fieldMaxRows = config('filament-http-logs.field_max_rows', 1000);
+
+        if (is_array($data)) {
+            if ($fieldMaxRows && count($data) > $fieldMaxRows) {
+                $data = Arr::take($data, $fieldMaxRows);
+                $data['_spy_truncated'] = true;
+            }
+
+            foreach ($data as $k => &$v) {
+                foreach ($obfuscates as $key) {
+                    if (strcasecmp((string) $k, (string) $key) === 0) {
+                        if (is_array($v)) {
+                            foreach ($v as &$item) {
+                                $item = $mask;
+                            }
+                        } else {
+                            $v = $mask;
+                        }
+                    }
+                }
+
+                if (is_array($v)) {
+                    $v = self::obfuscate($v);
+                } elseif (is_string($v)) {
+                    $v = Str::limit($v, $fieldMaxLength);
+                }
+            }
+        } elseif (is_string($data)) {
+            $data = Str::limit(str_replace($obfuscates, $mask, $data), $fieldMaxLength);
+        } elseif ($data instanceof \GuzzleHttp\Psr7\Uri) {
+            parse_str($data->getQuery(), $query);
+
+            return $data->withQuery(http_build_query(self::obfuscate($query)));
+        }
+
+        return $data;
+    }
+
+    protected static function shouldLog(RequestInterface $request): bool
+    {
+        return ! Str::contains((string) $request->getUri(), config('filament-http-logs.deny_hosts', []));
+    }
+
+    protected static function handleRequest(RequestInterface $request): ?HttpLog
+    {
+        $requestBody = self::parseContent(
+            'request',
+            $request->getBody()
+                ->getContents(),
+            $request->getHeaderLine('Content-Type')
+        );
+
+        try {
+            $headers = $request->getHeaders();
+            foreach ($headers as $key => $value) {
+                if (is_array($value)) {
+                    $headers[$key] = implode(', ', $value);
+                }
+            }
+
+            return HttpLog::create([
+                'url' => urldecode(self::obfuscate((string) $request->getUri())),
+                'method' => $request->getMethod(),
+                'request_headers' => self::obfuscate($headers),
+                'request_body' => self::obfuscate($requestBody),
+            ]);
+        } catch (Exception $e) {
+            report($e); // silence is golden
+
+            return null;
+        }
+    }
+
+    protected static function handleResponse(ResponseInterface $response, ?HttpLog $httpLog): ResponseInterface
+    {
+        if ($httpLog) {
+            try {
+                $headers = $response->getHeaders();
+                foreach ($headers as $key => $value) {
+                    if (is_array($value)) {
+                        $headers[$key] = implode(', ', $value);
+                    }
+                }
+
+                $responseBody = self::parseContent(
+                    'response',
+                    $response->getBody()->getContents(),
+                    $response->getHeaderLine('Content-Type')
+                );
+                $httpLog->update([
+                    'status' => $response->getStatusCode(),
+                    'response_body' => self::obfuscate($responseBody),
+                    'response_headers' => self::obfuscate($headers),
+                ]);
+            } catch (Exception $e) {
+                report($e); // silence is golden
+            }
+        }
+
+        return $response;
+    }
+
+    protected static function handleException(Exception $exception, ?HttpLog $httpLog): void
+    {
+        if ($httpLog) {
+            try {
+                $httpLog->update([
+                    'status' => 0,
+                    'response_body' => $exception->getMessage(),
+                ]);
+            } catch (Exception $e) {
+                report($e); // silence is golden
+            }
+        }
+
+        throw $exception;
+    }
+}
