@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Agenciafmd\HttpLogs\Resources\HttpLogs;
 
+use Agenciafmd\Admix\Resources\Infolists\Components\DateTimeEntry;
 use Agenciafmd\HttpLogs\Models\HttpLog;
 use Agenciafmd\HttpLogs\Resources\HttpLogs\Pages\ListHttpLogs;
 use Agenciafmd\HttpLogs\Resources\HttpLogs\Tables\HttpLogsTable;
@@ -95,9 +96,7 @@ final class HttpLogResource extends Resource
                                 str_starts_with($state, '4') => 'warning',
                                 default => 'danger',
                             }),
-                        TextEntry::make('created_at')
-                            ->translateLabel()
-                            ->dateTime(config('filament-admix.timestamp.format'))
+                        DateTimeEntry::make('created_at')
                             ->columnSpan(4),
                     ])
                     ->columnSpanFull(),
