@@ -14,6 +14,8 @@ return [
      * URLs to exclude from logging.
      */
     'deny_hosts' => [
+        'https://fonts.gstatic.com',
+        'https://generativelanguage.googleapis.com',
         //        'https://httpbin.org',
     ],
 
