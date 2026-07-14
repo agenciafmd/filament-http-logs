@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 return [
     'name' => 'Logs de integração',
+    'navigation_group' => null,
+    'navigation_sort' => 1001,
 
     /*
      * Enable or disable log recording.

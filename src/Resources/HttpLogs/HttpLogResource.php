@@ -20,8 +20,6 @@ final class HttpLogResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentMagnifyingGlass;
 
-    protected static ?int $navigationSort = 1001;
-
     protected static bool $isGloballySearchable = false;
 
     protected static ?string $recordTitleAttribute = 'url';
@@ -34,6 +32,16 @@ final class HttpLogResource extends Resource
     public static function getPluralModelLabel(): string
     {
         return __('HttpLogs');
+    }
+
+    public static function getNavigationSort(): ?int
+    {
+        return config('filament-http-logs.navigation_sort');
+    }
+
+    public static function getNavigationGroup(): ?string
+    {
+        return config('filament-http-logs.navigation_group');
     }
 
     public static function infolist(Schema $schema): Schema
