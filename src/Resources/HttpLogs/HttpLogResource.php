@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace Agenciafmd\HttpLogs\Resources\HttpLogs;
 
-use Agenciafmd\HttpLogs\Resources\HttpLogs\Infolists\HttpLogInfolist;
 use Agenciafmd\HttpLogs\Models\HttpLog;
+use Agenciafmd\HttpLogs\Resources\HttpLogs\Infolists\HttpLogInfolist;
 use Agenciafmd\HttpLogs\Resources\HttpLogs\Pages\ListHttpLogs;
 use Agenciafmd\HttpLogs\Resources\HttpLogs\Tables\HttpLogsTable;
 use BackedEnum;
