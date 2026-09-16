@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Agenciafmd\HttpLogs\Resources\HttpLogs\Infolists;
 
 use Agenciafmd\Admix\Resources\Infolists\Components\DateTimeEntry;
+use Agenciafmd\HttpLogs\Models\HttpLog;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
@@ -34,13 +35,13 @@ final class HttpLogInfolist
                             ->translateLabel()
                             ->columnSpan(4),
                         self::keyValueEntry('request_headers')
-                            ->hidden(fn ($record): bool => ! config('filament-http-logs.show_request_headers')),
+                            ->hidden(fn (): bool => ! config('filament-http-logs.show_request_headers')),
                         self::keyValueEntry('request_body')
-                            ->hidden(fn ($record): bool => ! $record->request_body),
+                            ->hidden(fn (HttpLog $record): bool => ! $record->request_body),
                         self::keyValueEntry('response_headers')
-                            ->hidden(fn ($record): bool => ! config('filament-http-logs.show_response_headers')),
+                            ->hidden(fn (): bool => ! config('filament-http-logs.show_response_headers')),
                         self::keyValueEntry('response_body')
-                            ->hidden(fn ($record): bool => ! $record->response_body),
+                            ->hidden(fn (HttpLog $record): bool => ! $record->response_body),
                         TextEntry::make('status')
                             ->translateLabel()
                             ->badge()
@@ -62,9 +63,9 @@ final class HttpLogInfolist
     {
         return KeyValueEntry::make($name)
             ->translateLabel()
-            ->state(fn ($record) => collect(Arr::dot(Arr::wrap($record->{$name} ?? [])))
-                ->map(fn ($value) => is_array($value) ? implode(', ', $value) : $value)
-                ->toArray())
+            ->state(fn (HttpLog $record): array => collect(Arr::dot(Arr::wrap($record->{$name} ?? [])))
+                ->map(fn (mixed $value): mixed => is_array($value) ? implode(', ', $value) : $value)
+                ->all())
             ->columnSpanFull();
     }
 }

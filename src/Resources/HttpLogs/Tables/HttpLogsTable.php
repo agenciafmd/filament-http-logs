@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Agenciafmd\HttpLogs\Resources\HttpLogs\Tables;
 
+use Agenciafmd\HttpLogs\Models\HttpLog;
 use Agenciafmd\HttpLogs\Services\HttpLogService;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -37,7 +38,7 @@ final class HttpLogsTable
                     ->translateLabel()
                     ->sortable()
                     ->searchable()
-                    ->formatStateUsing(function ($state): string {
+                    ->formatStateUsing(function (string $state): string {
                         $scheme = parse_url($state, PHP_URL_SCHEME);
                         $host = parse_url($state, PHP_URL_HOST);
 
@@ -47,24 +48,12 @@ final class HttpLogsTable
                     ->translateLabel()
                     ->sortable()
                     ->searchable()
-                    ->state(function ($record) {
-                        if (! $record->request_body) {
-                            return '';
-                        }
-
-                        return str(json_encode($record->request_body, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT))->limit(50);
-                    }),
+                    ->state(fn (HttpLog $record): string => self::bodyPreview($record->request_body)),
                 TextColumn::make('response_body')
                     ->translateLabel()
                     ->sortable()
                     ->searchable()
-                    ->state(function ($record) {
-                        if (! $record->response_body) {
-                            return '';
-                        }
-
-                        return str(json_encode($record->response_body, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT))->limit(50);
-                    }),
+                    ->state(fn (HttpLog $record): string => self::bodyPreview($record->response_body)),
                 TextColumn::make('status')
                     ->translateLabel()
                     ->sortable()
@@ -96,8 +85,8 @@ final class HttpLogsTable
                     ->translateLabel()
                     ->options(fn (): array => HttpLogService::make()
                         ->urls()
-                        ->toArray())
-                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'], fn (Builder $query, $value): Builder => $query->where('url', 'like', $value . '%'))),
+                        ->all())
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'], fn (Builder $query, string $value): Builder => $query->where('url', 'like', $value . '%'))),
                 SelectFilter::make('status')
                     ->translateLabel()
                     ->options([
@@ -107,7 +96,7 @@ final class HttpLogsTable
                         '4' => '4xx',
                         '5' => '5xx',
                     ])
-                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'], fn (Builder $query, $value): Builder => $query->where('status', 'like', $value . '%'))),
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'], fn (Builder $query, string $value): Builder => $query->where('status', 'like', $value . '%'))),
                 Filter::make('created_at')
                     ->schema([
                         DateTimePicker::make('created_from')
@@ -118,11 +107,11 @@ final class HttpLogsTable
                     ->query(fn (Builder $query, array $data): Builder => $query
                         ->when(
                             $data['created_from'],
-                            fn (Builder $query, $date): Builder => $query->whereDate('created_at', '>=', $date),
+                            fn (Builder $query, string $date): Builder => $query->whereDate('created_at', '>=', $date),
                         )
                         ->when(
                             $data['created_until'],
-                            fn (Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
+                            fn (Builder $query, string $date): Builder => $query->whereDate('created_at', '<=', $date),
                         )),
             ])
             ->recordActions([
@@ -134,5 +123,16 @@ final class HttpLogsTable
                 ]),
             ])
             ->defaultSort(fn (Builder $query): Builder => $query->latest());
+    }
+
+    private static function bodyPreview(mixed $body): string
+    {
+        if (! $body) {
+            return '';
+        }
+
+        return str(json_encode($body, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT))
+            ->limit(50)
+            ->toString();
     }
 }

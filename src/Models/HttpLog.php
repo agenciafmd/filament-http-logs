@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
+use Override;
 
 #[UseFactory(HttpLogFactory::class)]
 final class HttpLog extends Model
@@ -23,6 +24,7 @@ final class HttpLog extends Model
             ->where('created_at', '<=', now()->subDays(config('filament-http-logs.keep_days')));
     }
 
+    #[Override]
     protected function casts(): array
     {
         return [

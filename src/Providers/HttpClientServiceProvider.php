@@ -6,13 +6,13 @@ namespace Agenciafmd\HttpLogs\Providers;
 
 use Agenciafmd\HttpLogs\Models\HttpLog;
 use Exception;
-use GuzzleHttp\Psr7\Uri;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
+use Psr\Http\Message\UriInterface;
 
 /* source: https://github.com/farayaz/laravel-spy/blob/main/src/LaravelSpy.php */
 
@@ -29,7 +29,7 @@ final class HttpClientServiceProvider extends ServiceProvider
 
             return $handler($request, $options)->then(
                 fn (ResponseInterface $response): ResponseInterface => self::handleResponse($response, $httpLog),
-                fn (Exception $e) => self::handleException($e, $httpLog)
+                fn (Exception $e): never => self::handleException($e, $httpLog)
             );
         });
     }
@@ -39,14 +39,14 @@ final class HttpClientServiceProvider extends ServiceProvider
         //
     }
 
-    private static function parseContent(string $context, mixed $content, ?string $contentType = null): mixed
+    private static function parseContent(string $context, string $content, string $contentType = ''): mixed
     {
-        if (empty($content)) {
+        if ($content === '') {
             return null;
         }
 
         $excludeTypes = config('filament-http-logs.' . $context . '_body_exclude_content_types', []);
-        if (! empty($contentType)) {
+        if ($contentType !== '') {
             foreach ($excludeTypes as $excludeType) {
                 if (str_contains($contentType, $excludeType)) {
                     return ['content excluded by configuration'];
@@ -54,8 +54,9 @@ final class HttpClientServiceProvider extends ServiceProvider
             }
         }
 
-        if (str_contains($contentType, 'application/json') || json_decode($content, true) !== null) {
-            return json_decode($content, true);
+        $decodedJson = json_decode($content, true);
+        if (str_contains($contentType, 'application/json') || $decodedJson !== null) {
+            return $decodedJson;
         }
 
         if (str_contains($contentType, 'application/xml') || str_contains($contentType, 'text/xml')) {
@@ -72,12 +73,12 @@ final class HttpClientServiceProvider extends ServiceProvider
             return base64_encode($content);
         }
 
-        if (($contentType && (
+        if ($contentType !== '' && (
             str_contains($contentType, 'image/') ||
             str_contains($contentType, 'video/') ||
             str_contains($contentType, 'application/') ||
             str_contains($contentType, 'audio/')
-        ))) {
+        )) {
             return base64_encode($content);
         }
 
@@ -118,7 +119,7 @@ final class HttpClientServiceProvider extends ServiceProvider
             }
         } elseif (is_string($data)) {
             $data = Str::limit(str_replace($obfuscates, $mask, $data), $fieldMaxLength);
-        } elseif ($data instanceof Uri) {
+        } elseif ($data instanceof UriInterface) {
             parse_str($data->getQuery(), $query);
 
             return $data->withQuery(http_build_query(self::obfuscate($query)));
@@ -150,7 +151,7 @@ final class HttpClientServiceProvider extends ServiceProvider
             }
 
             return HttpLog::query()->create([
-                'url' => urldecode(self::obfuscate((string) $request->getUri())),
+                'url' => urldecode((string) self::obfuscate($request->getUri())),
                 'method' => $request->getMethod(),
                 'request_headers' => self::obfuscate($headers),
                 'request_body' => self::obfuscate($requestBody),
@@ -164,7 +165,7 @@ final class HttpClientServiceProvider extends ServiceProvider
 
     private static function handleResponse(ResponseInterface $response, ?HttpLog $httpLog): ResponseInterface
     {
-        if ($httpLog) {
+        if ($httpLog instanceof HttpLog) {
             try {
                 $headers = $response->getHeaders();
                 foreach ($headers as $key => $value) {
@@ -191,9 +192,9 @@ final class HttpClientServiceProvider extends ServiceProvider
         return $response;
     }
 
-    private static function handleException(Exception $exception, ?HttpLog $httpLog): void
+    private static function handleException(Exception $exception, ?HttpLog $httpLog): never
     {
-        if ($httpLog) {
+        if ($httpLog instanceof HttpLog) {
             try {
                 $httpLog->update([
                     'status' => 0,

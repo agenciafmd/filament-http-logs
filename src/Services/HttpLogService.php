@@ -17,9 +17,9 @@ final class HttpLogService
 
     public function urls(): Collection
     {
-        return cache()->flexible('http-logs-services-urls', [now()->addMinutes(5), now()->addMinutes(10)], fn () => $this->queryBuilder()
+        return cache()->flexible('http-logs-services-urls', [now()->addMinutes(5), now()->addMinutes(10)], fn (): Collection => $this->queryBuilder()
             ->pluck('url')
-            ->mapWithKeys(function ($url): array {
+            ->mapWithKeys(function (string $url): array {
                 $scheme = parse_url($url, PHP_URL_SCHEME);
                 $host = parse_url($url, PHP_URL_HOST);
 
