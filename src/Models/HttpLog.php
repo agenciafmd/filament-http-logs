@@ -14,7 +14,8 @@ use Illuminate\Database\Eloquent\Prunable;
 #[UseFactory(HttpLogFactory::class)]
 final class HttpLog extends Model
 {
-    use HasFactory, Prunable;
+    use HasFactory;
+    use Prunable;
 
     public function prunable(): Builder
     {

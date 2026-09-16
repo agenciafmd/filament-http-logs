@@ -20,7 +20,7 @@ final class CommandServiceProvider extends ServiceProvider
             //
         ]);
 
-        $this->app->booted(function () {
+        $this->app->booted(function (): void {
             $schedule = $this->app->make(Schedule::class);
             $minutes = config('filament-admix.schedule.minutes');
 

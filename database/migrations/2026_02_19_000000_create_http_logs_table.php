@@ -11,7 +11,7 @@ return new class extends Migration
     public function up(): void
     {
         /* https://github.com/farayaz/laravel-spy/blob/main/database/migrations/create_spy_http_logs_table.php.stub */
-        Schema::create('http_logs', static function (Blueprint $table) {
+        Schema::create('http_logs', static function (Blueprint $table): void {
             $table->id();
             $table->text('url');
             $table->string('method', 6)

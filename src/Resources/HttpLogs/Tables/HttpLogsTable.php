@@ -37,7 +37,7 @@ final class HttpLogsTable
                     ->translateLabel()
                     ->sortable()
                     ->searchable()
-                    ->formatStateUsing(function ($state) {
+                    ->formatStateUsing(function ($state): string {
                         $scheme = parse_url($state, PHP_URL_SCHEME);
                         $host = parse_url($state, PHP_URL_HOST);
 
@@ -97,9 +97,7 @@ final class HttpLogsTable
                     ->options(fn (): array => HttpLogService::make()
                         ->urls()
                         ->toArray())
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query->when($data['value'], fn (Builder $query, $value): Builder => $query->where('url', 'like', $value . '%'));
-                    }),
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'], fn (Builder $query, $value): Builder => $query->where('url', 'like', $value . '%'))),
                 SelectFilter::make('status')
                     ->translateLabel()
                     ->options([
@@ -109,9 +107,7 @@ final class HttpLogsTable
                         '4' => '4xx',
                         '5' => '5xx',
                     ])
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query->when($data['value'], fn (Builder $query, $value): Builder => $query->where('status', 'like', $value . '%'));
-                    }),
+                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'], fn (Builder $query, $value): Builder => $query->where('status', 'like', $value . '%'))),
                 Filter::make('created_at')
                     ->schema([
                         DateTimePicker::make('created_from')
@@ -119,17 +115,15 @@ final class HttpLogsTable
                         DateTimePicker::make('created_until')
                             ->translateLabel(),
                     ])
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when(
-                                $data['created_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('created_at', '>=', $date),
-                            )
-                            ->when(
-                                $data['created_until'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
-                            );
-                    }),
+                    ->query(fn (Builder $query, array $data): Builder => $query
+                        ->when(
+                            $data['created_from'],
+                            fn (Builder $query, $date): Builder => $query->whereDate('created_at', '>=', $date),
+                        )
+                        ->when(
+                            $data['created_until'],
+                            fn (Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
+                        )),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -139,8 +133,6 @@ final class HttpLogsTable
                     DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort(function (Builder $query): Builder {
-                return $query->orderBy('created_at', 'desc');
-            });
+            ->defaultSort(fn (Builder $query): Builder => $query->latest());
     }
 }

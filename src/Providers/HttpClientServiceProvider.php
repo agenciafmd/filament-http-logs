@@ -6,6 +6,7 @@ namespace Agenciafmd\HttpLogs\Providers;
 
 use Agenciafmd\HttpLogs\Models\HttpLog;
 use Exception;
+use GuzzleHttp\Psr7\Uri;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
@@ -19,19 +20,17 @@ final class HttpClientServiceProvider extends ServiceProvider
 {
     public function boot(): void
     {
-        Http::globalMiddleware(static function (callable $handler): callable {
-            return static function (RequestInterface $request, array $options) use ($handler) {
-                if (! config('filament-http-logs.enabled')) {
-                    return $handler($request, $options);
-                }
+        Http::globalMiddleware(static fn (callable $handler): callable => static function (RequestInterface $request, array $options) use ($handler) {
+            if (! config('filament-http-logs.enabled')) {
+                return $handler($request, $options);
+            }
 
-                $httpLog = self::shouldLog($request) ? self::handleRequest($request) : null;
+            $httpLog = self::shouldLog($request) ? self::handleRequest($request) : null;
 
-                return $handler($request, $options)->then(
-                    fn (ResponseInterface $response) => self::handleResponse($response, $httpLog),
-                    fn (Exception $e) => self::handleException($e, $httpLog)
-                );
-            };
+            return $handler($request, $options)->then(
+                fn (ResponseInterface $response): ResponseInterface => self::handleResponse($response, $httpLog),
+                fn (Exception $e) => self::handleException($e, $httpLog)
+            );
         });
     }
 
@@ -40,7 +39,7 @@ final class HttpClientServiceProvider extends ServiceProvider
         //
     }
 
-    protected static function parseContent(string $context, mixed $content, ?string $contentType = null): mixed
+    private static function parseContent(string $context, mixed $content, ?string $contentType = null): mixed
     {
         if (empty($content)) {
             return null;
@@ -85,7 +84,7 @@ final class HttpClientServiceProvider extends ServiceProvider
         return $content;
     }
 
-    protected static function obfuscate(mixed $data): mixed
+    private static function obfuscate(mixed $data): mixed
     {
         $mask = '#######';
         $obfuscates = config('filament-http-logs.hide_fields', []);
@@ -119,7 +118,7 @@ final class HttpClientServiceProvider extends ServiceProvider
             }
         } elseif (is_string($data)) {
             $data = Str::limit(str_replace($obfuscates, $mask, $data), $fieldMaxLength);
-        } elseif ($data instanceof \GuzzleHttp\Psr7\Uri) {
+        } elseif ($data instanceof Uri) {
             parse_str($data->getQuery(), $query);
 
             return $data->withQuery(http_build_query(self::obfuscate($query)));
@@ -128,12 +127,12 @@ final class HttpClientServiceProvider extends ServiceProvider
         return $data;
     }
 
-    protected static function shouldLog(RequestInterface $request): bool
+    private static function shouldLog(RequestInterface $request): bool
     {
         return ! Str::contains((string) $request->getUri(), config('filament-http-logs.deny_hosts', []));
     }
 
-    protected static function handleRequest(RequestInterface $request): ?HttpLog
+    private static function handleRequest(RequestInterface $request): ?HttpLog
     {
         $requestBody = self::parseContent(
             'request',
@@ -150,20 +149,20 @@ final class HttpClientServiceProvider extends ServiceProvider
                 }
             }
 
-            return HttpLog::create([
+            return HttpLog::query()->create([
                 'url' => urldecode(self::obfuscate((string) $request->getUri())),
                 'method' => $request->getMethod(),
                 'request_headers' => self::obfuscate($headers),
                 'request_body' => self::obfuscate($requestBody),
             ]);
-        } catch (Exception $e) {
-            report($e); // silence is golden
+        } catch (Exception $exception) {
+            report($exception); // silence is golden
 
             return null;
         }
     }
 
-    protected static function handleResponse(ResponseInterface $response, ?HttpLog $httpLog): ResponseInterface
+    private static function handleResponse(ResponseInterface $response, ?HttpLog $httpLog): ResponseInterface
     {
         if ($httpLog) {
             try {
@@ -192,7 +191,7 @@ final class HttpClientServiceProvider extends ServiceProvider
         return $response;
     }
 
-    protected static function handleException(Exception $exception, ?HttpLog $httpLog): void
+    private static function handleException(Exception $exception, ?HttpLog $httpLog): void
     {
         if ($httpLog) {
             try {
