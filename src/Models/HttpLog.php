@@ -20,7 +20,7 @@ final class HttpLog extends Model
     public function prunable(): Builder
     {
         return self::query()
-            ->where('deleted_at', '<=', now()->subDays(config('filament-http-logs.keep_days')));
+            ->where('created_at', '<=', now()->subDays(config('filament-http-logs.keep_days')));
     }
 
     protected function casts(): array
