@@ -64,7 +64,9 @@ final class HttpLogInfolist
         return KeyValueEntry::make($name)
             ->translateLabel()
             ->state(fn (HttpLog $record): array => collect(Arr::dot(Arr::wrap($record->{$name} ?? [])))
-                ->map(fn (mixed $value): mixed => is_array($value) ? implode(', ', $value) : $value)
+                ->map(static fn (mixed $value): mixed => is_array($value)
+                    ? collect($value)->filter(static fn (mixed $item): bool => is_scalar($item))->implode(', ')
+                    : $value)
                 ->all())
             ->columnSpanFull();
     }

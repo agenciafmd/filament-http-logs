@@ -6,28 +6,38 @@ namespace Agenciafmd\HttpLogs\Providers;
 
 use Agenciafmd\HttpLogs\Models\HttpLog;
 use Exception;
+use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
 use Psr\Http\Message\UriInterface;
+use SimpleXMLElement;
 
 /* source: https://github.com/farayaz/laravel-spy/blob/main/src/LaravelSpy.php */
 
 final class HttpClientServiceProvider extends ServiceProvider
 {
+    private const string MASK = '#######';
+
     public function boot(): void
     {
-        Http::globalMiddleware(static fn (callable $handler): callable => static function (RequestInterface $request, array $options) use ($handler) {
+        Http::globalMiddleware(static fn (callable $handler): callable => static function (RequestInterface $request, array $options) use ($handler): mixed {
             if (! config('filament-http-logs.enabled')) {
                 return $handler($request, $options);
             }
 
             $httpLog = self::shouldLog($request) ? self::handleRequest($request) : null;
+            $promise = $handler($request, $options);
 
-            return $handler($request, $options)->then(
+            if (! $promise instanceof PromiseInterface) {
+                return $promise;
+            }
+
+            return $promise->then(
                 fn (ResponseInterface $response): ResponseInterface => self::handleResponse($response, $httpLog),
                 fn (Exception $e): never => self::handleException($e, $httpLog)
             );
@@ -45,9 +55,8 @@ final class HttpClientServiceProvider extends ServiceProvider
             return null;
         }
 
-        $excludeTypes = config('filament-http-logs.' . $context . '_body_exclude_content_types', []);
         if ($contentType !== '') {
-            foreach ($excludeTypes as $excludeType) {
+            foreach (self::configStrings('filament-http-logs.' . $context . '_body_exclude_content_types') as $excludeType) {
                 if (str_contains($contentType, $excludeType)) {
                     return ['content excluded by configuration'];
                 }
@@ -60,7 +69,10 @@ final class HttpClientServiceProvider extends ServiceProvider
         }
 
         if (str_contains($contentType, 'application/xml') || str_contains($contentType, 'text/xml')) {
-            return json_decode(json_encode(simplexml_load_string($content)), true);
+            $xml = self::parseXml($content);
+            $json = $xml === false ? false : json_encode($xml);
+
+            return $json === false ? $content : json_decode($json, true);
         }
 
         if (str_contains($contentType, 'application/x-www-form-urlencoded')) {
@@ -85,28 +97,40 @@ final class HttpClientServiceProvider extends ServiceProvider
         return $content;
     }
 
+    /**
+     * Sem os warnings do libxml, que o Laravel converteria em exceção e impediriam o registro do log.
+     */
+    private static function parseXml(string $content): SimpleXMLElement|false
+    {
+        $usedInternalErrors = libxml_use_internal_errors(true);
+        $xml = simplexml_load_string($content);
+        libxml_clear_errors();
+        libxml_use_internal_errors($usedInternalErrors);
+
+        return $xml;
+    }
+
     private static function obfuscate(mixed $data): mixed
     {
-        $mask = '#######';
-        $obfuscates = config('filament-http-logs.hide_fields', []);
-        $fieldMaxLength = config('filament-http-logs.field_max_length', 10000);
-        $fieldMaxRows = config('filament-http-logs.field_max_rows', 1000);
+        $obfuscates = self::configStrings('filament-http-logs.hide_fields');
+        $fieldMaxLength = self::configInteger('filament-http-logs.field_max_length', 10000);
+        $fieldMaxRows = self::configInteger('filament-http-logs.field_max_rows', 1000);
 
         if (is_array($data)) {
-            if ($fieldMaxRows && count($data) > $fieldMaxRows) {
+            if ($fieldMaxRows > 0 && count($data) > $fieldMaxRows) {
                 $data = Arr::take($data, $fieldMaxRows);
                 $data['_spy_truncated'] = true;
             }
 
             foreach ($data as $k => &$v) {
                 foreach ($obfuscates as $key) {
-                    if (strcasecmp((string) $k, (string) $key) === 0) {
+                    if (strcasecmp((string) $k, $key) === 0) {
                         if (is_array($v)) {
                             foreach ($v as &$item) {
-                                $item = $mask;
+                                $item = self::MASK;
                             }
                         } else {
-                            $v = $mask;
+                            $v = self::MASK;
                         }
                     }
                 }
@@ -118,19 +142,23 @@ final class HttpClientServiceProvider extends ServiceProvider
                 }
             }
         } elseif (is_string($data)) {
-            $data = Str::limit(str_replace($obfuscates, $mask, $data), $fieldMaxLength);
-        } elseif ($data instanceof UriInterface) {
-            parse_str($data->getQuery(), $query);
-
-            return $data->withQuery(http_build_query(self::obfuscate($query)));
+            $data = Str::limit(str_replace($obfuscates, self::MASK, $data), $fieldMaxLength);
         }
 
         return $data;
     }
 
+    private static function obfuscateUri(UriInterface $uri): string
+    {
+        parse_str($uri->getQuery(), $query);
+        $obfuscatedQuery = self::obfuscate($query);
+
+        return (string) $uri->withQuery(http_build_query(is_array($obfuscatedQuery) ? $obfuscatedQuery : []));
+    }
+
     private static function shouldLog(RequestInterface $request): bool
     {
-        return ! Str::contains((string) $request->getUri(), config('filament-http-logs.deny_hosts', []));
+        return ! Str::contains((string) $request->getUri(), self::configStrings('filament-http-logs.deny_hosts'));
     }
 
     private static function handleRequest(RequestInterface $request): ?HttpLog
@@ -143,17 +171,10 @@ final class HttpClientServiceProvider extends ServiceProvider
         );
 
         try {
-            $headers = $request->getHeaders();
-            foreach ($headers as $key => $value) {
-                if (is_array($value)) {
-                    $headers[$key] = implode(', ', $value);
-                }
-            }
-
             return HttpLog::query()->create([
-                'url' => urldecode((string) self::obfuscate($request->getUri())),
+                'url' => urldecode(self::obfuscateUri($request->getUri())),
                 'method' => $request->getMethod(),
-                'request_headers' => self::obfuscate($headers),
+                'request_headers' => self::obfuscate(self::headers($request)),
                 'request_body' => self::obfuscate($requestBody),
             ]);
         } catch (Exception $exception) {
@@ -167,13 +188,6 @@ final class HttpClientServiceProvider extends ServiceProvider
     {
         if ($httpLog instanceof HttpLog) {
             try {
-                $headers = $response->getHeaders();
-                foreach ($headers as $key => $value) {
-                    if (is_array($value)) {
-                        $headers[$key] = implode(', ', $value);
-                    }
-                }
-
                 $responseBody = self::parseContent(
                     'response',
                     $response->getBody()->getContents(),
@@ -182,7 +196,7 @@ final class HttpClientServiceProvider extends ServiceProvider
                 $httpLog->update([
                     'status' => $response->getStatusCode(),
                     'response_body' => self::obfuscate($responseBody),
-                    'response_headers' => self::obfuscate($headers),
+                    'response_headers' => self::obfuscate(self::headers($response)),
                 ]);
             } catch (Exception $e) {
                 report($e); // silence is golden
@@ -206,5 +220,35 @@ final class HttpClientServiceProvider extends ServiceProvider
         }
 
         throw $exception;
+    }
+
+    /**
+     * @return array<string> nome do cabeçalho => valores separados por vírgula
+     */
+    private static function headers(MessageInterface $message): array
+    {
+        return collect($message->getHeaders())
+            ->map(static fn (array $values): string => implode(', ', $values))
+            ->all();
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private static function configStrings(string $key): array
+    {
+        $values = config($key);
+
+        return collect(is_array($values) ? $values : [])
+            ->filter(static fn (mixed $value): bool => is_string($value))
+            ->values()
+            ->all();
+    }
+
+    private static function configInteger(string $key, int $default): int
+    {
+        $value = config($key);
+
+        return is_numeric($value) ? (int) $value : $default;
     }
 }

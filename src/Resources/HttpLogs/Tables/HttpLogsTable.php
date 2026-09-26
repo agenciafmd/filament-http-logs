@@ -68,7 +68,7 @@ final class HttpLogsTable
                     }),
                 TextColumn::make('created_at')
                     ->translateLabel()
-                    ->dateTime(config('filament-admix.timestamp.format'))
+                    ->dateTime(config()->string('filament-admix.timestamp.format', 'd/m/Y H:i:s'))
                     ->sortable(),
             ])
             ->filters([
@@ -86,7 +86,7 @@ final class HttpLogsTable
                     ->options(fn (): array => HttpLogService::make()
                         ->urls()
                         ->all())
-                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'], fn (Builder $query, string $value): Builder => $query->where('url', 'like', $value . '%'))),
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(self::filterValue($data, 'value'), fn (Builder $query, string $value): Builder => $query->where('url', 'like', $value . '%'))),
                 SelectFilter::make('status')
                     ->translateLabel()
                     ->options([
@@ -96,7 +96,7 @@ final class HttpLogsTable
                         '4' => '4xx',
                         '5' => '5xx',
                     ])
-                    ->query(fn (Builder $query, array $data): Builder => $query->when($data['value'], fn (Builder $query, string $value): Builder => $query->where('status', 'like', $value . '%'))),
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(self::filterValue($data, 'value'), fn (Builder $query, string $value): Builder => $query->where('status', 'like', $value . '%'))),
                 Filter::make('created_at')
                     ->schema([
                         DateTimePicker::make('created_from')
@@ -106,11 +106,11 @@ final class HttpLogsTable
                     ])
                     ->query(fn (Builder $query, array $data): Builder => $query
                         ->when(
-                            $data['created_from'],
+                            self::filterValue($data, 'created_from'),
                             fn (Builder $query, string $date): Builder => $query->whereDate('created_at', '>=', $date),
                         )
                         ->when(
-                            $data['created_until'],
+                            self::filterValue($data, 'created_until'),
                             fn (Builder $query, string $date): Builder => $query->whereDate('created_at', '<=', $date),
                         )),
             ])
@@ -131,8 +131,18 @@ final class HttpLogsTable
             return '';
         }
 
-        return str(json_encode($body, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT))
+        return str(json_encode($body, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) ?: '')
             ->limit(50)
             ->toString();
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $data
+     */
+    private static function filterValue(array $data, string $key): ?string
+    {
+        $value = $data[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
     }
 }

@@ -15,11 +15,17 @@ final class HttpLogService
         return resolve(self::class);
     }
 
+    /**
+     * Origens (`scheme://host`) já registradas, para o filtro por URL.
+     *
+     * @return Collection<string, non-falsy-string>
+     */
     public function urls(): Collection
     {
         return cache()->flexible('http-logs-services-urls', [now()->addMinutes(5), now()->addMinutes(10)], fn (): Collection => $this->queryBuilder()
             ->pluck('url')
-            ->mapWithKeys(function (string $url): array {
+            ->filter(static fn (mixed $url): bool => is_string($url))
+            ->mapWithKeys(static function (string $url): array {
                 $scheme = parse_url($url, PHP_URL_SCHEME);
                 $host = parse_url($url, PHP_URL_HOST);
 
@@ -32,6 +38,9 @@ final class HttpLogService
             ->sort());
     }
 
+    /**
+     * @return Builder<HttpLog>
+     */
     private function queryBuilder(): Builder
     {
         return HttpLog::query();

@@ -36,12 +36,16 @@ final class HttpLogResource extends Resource
 
     public static function getNavigationSort(): ?int
     {
-        return config('filament-http-logs.navigation_sort');
+        $navigationSort = config('filament-http-logs.navigation_sort');
+
+        return is_int($navigationSort) ? $navigationSort : null;
     }
 
     public static function getNavigationGroup(): ?string
     {
-        return config('filament-http-logs.navigation_group');
+        $navigationGroup = config('filament-http-logs.navigation_group');
+
+        return is_string($navigationGroup) ? $navigationGroup : null;
     }
 
     public static function infolist(Schema $schema): Schema

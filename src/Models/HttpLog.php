@@ -15,13 +15,18 @@ use Override;
 #[UseFactory(HttpLogFactory::class)]
 final class HttpLog extends Model
 {
+    /** @use HasFactory<HttpLogFactory> */
     use HasFactory;
+
     use Prunable;
 
+    /**
+     * @return Builder<self>
+     */
     public function prunable(): Builder
     {
         return self::query()
-            ->where('created_at', '<=', today()->subDays(config('filament-http-logs.keep_days')));
+            ->where('created_at', '<=', today()->subDays(config()->integer('filament-http-logs.keep_days', 120)));
     }
 
     #[Override]
