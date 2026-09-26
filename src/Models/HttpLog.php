@@ -21,7 +21,7 @@ final class HttpLog extends Model
     public function prunable(): Builder
     {
         return self::query()
-            ->where('created_at', '<=', now()->subDays(config('filament-http-logs.keep_days')));
+            ->where('created_at', '<=', today()->subDays(config('filament-http-logs.keep_days')));
     }
 
     #[Override]
