@@ -10,7 +10,6 @@ use GuzzleHttp\Promise\PromiseInterface;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Str;
 use Psr\Http\Message\MessageInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseInterface;
@@ -138,11 +137,14 @@ final class HttpClientServiceProvider extends ServiceProvider
                 if (is_array($v)) {
                     $v = self::obfuscate($v);
                 } elseif (is_string($v)) {
-                    $v = Str::limit($v, $fieldMaxLength);
+                    $v = str($v)->limit($fieldMaxLength)->toString();
                 }
             }
         } elseif (is_string($data)) {
-            $data = Str::limit(str_replace($obfuscates, self::MASK, $data), $fieldMaxLength);
+            $data = str($data)
+                ->replace($obfuscates, self::MASK)
+                ->limit($fieldMaxLength)
+                ->toString();
         }
 
         return $data;
@@ -158,7 +160,8 @@ final class HttpClientServiceProvider extends ServiceProvider
 
     private static function shouldLog(RequestInterface $request): bool
     {
-        return ! Str::contains((string) $request->getUri(), self::configStrings('filament-http-logs.deny_hosts'));
+        return ! str((string) $request->getUri())
+            ->contains(self::configStrings('filament-http-logs.deny_hosts'));
     }
 
     private static function handleRequest(RequestInterface $request): ?HttpLog
