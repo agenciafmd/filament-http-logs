@@ -9,7 +9,7 @@ use Agenciafmd\HttpLogs\Services\HttpLogService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-uses(TestCase::class, RefreshDatabase::class);
+pest()->extend(TestCase::class)->use(RefreshDatabase::class);
 
 it('lists each logged origin once and in alphabetical order', function (): void {
     HttpLog::factory()->create(['url' => 'https://b.test/api/users']);
