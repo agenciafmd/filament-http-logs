@@ -121,24 +121,21 @@ final class HttpClientServiceProvider extends ServiceProvider
                 $data['_spy_truncated'] = true;
             }
 
-            foreach ($data as $k => &$v) {
-                foreach ($obfuscates as $key) {
-                    if (strcasecmp((string) $k, $key) === 0) {
-                        if (is_array($v)) {
-                            foreach ($v as &$item) {
-                                $item = self::MASK;
-                            }
-                        } else {
-                            $v = self::MASK;
-                        }
-                    }
+            foreach ($data as $field => $value) {
+                $isHiddenField = array_any(
+                    $obfuscates,
+                    static fn (string $hiddenField): bool => strcasecmp((string) $field, $hiddenField) === 0,
+                );
+
+                if ($isHiddenField) {
+                    $value = is_array($value) ? array_fill_keys(array_keys($value), self::MASK) : self::MASK;
                 }
 
-                if (is_array($v)) {
-                    $v = self::obfuscate($v);
-                } elseif (is_string($v)) {
-                    $v = str($v)->limit($fieldMaxLength)->toString();
-                }
+                $data[$field] = match (true) {
+                    is_array($value) => self::obfuscate($value),
+                    is_string($value) => str($value)->limit($fieldMaxLength)->toString(),
+                    default => $value,
+                };
             }
         } elseif (is_string($data)) {
             $data = str($data)

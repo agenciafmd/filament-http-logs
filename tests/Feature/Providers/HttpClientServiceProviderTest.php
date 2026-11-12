@@ -26,6 +26,25 @@ it('logs the request and the response with the sensitive fields masked', functio
         ->and($httpLog->response_body)->toBe(['ok' => true]);
 });
 
+it('masks hidden fields regardless of case, inside nested data and on every item of an array value', function (): void {
+    config()->set('filament-http-logs.enabled', true);
+    Http::fake([
+        'example.test/*' => Http::response(['ok' => true], 201, ['Content-Type' => 'application/json']),
+    ]);
+
+    Http::asJson()->post('https://example.test/api', [
+        'PASSWORD' => 'secret',
+        'user' => ['token' => 'abc', 'name' => 'Fulano'],
+        'token' => ['first', 'second'],
+    ]);
+
+    expect(HttpLog::query()->sole()->request_body)->toEqual([
+        'PASSWORD' => '#######',
+        'user' => ['token' => '#######', 'name' => 'Fulano'],
+        'token' => ['#######', '#######'],
+    ]);
+});
+
 it('does not log the requests to a denied host', function (): void {
     config()->set('filament-http-logs.enabled', true);
     config()->set('filament-http-logs.deny_hosts', ['https://denied.test']);
