@@ -6,12 +6,14 @@ namespace Agenciafmd\HttpLogs\Database\Factories;
 
 use Agenciafmd\HttpLogs\Models\HttpLog;
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Override;
 
 /**
  * @extends Factory<HttpLog>
  */
 final class HttpLogFactory extends Factory
 {
+    #[Override]
     protected $model = HttpLog::class;
 
     public function definition(): array
